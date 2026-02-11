@@ -104,3 +104,6 @@ internal partial class AppJsonSerializerContext : JsonSerializerContext
 {
 
 }
+
+// Make the Program class accessible to integration tests
+public partial class Program { }
