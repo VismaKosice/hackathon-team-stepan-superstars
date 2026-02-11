@@ -1,0 +1,10 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+*.md
+!README.md
+.git/
+.gitignore
+*.slnx
+HackatonAPI.IntegrationTests/
