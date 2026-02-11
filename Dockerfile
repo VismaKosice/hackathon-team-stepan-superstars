@@ -2,20 +2,20 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 
 # Install NativeAOT build prerequisites
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-       clang zlib1g-dev
+#RUN apt-get update \
+#    && apt-get install -y --no-install-recommends \
+#       clang zlib1g-dev
 
 WORKDIR /source
 
 # copy csproj and restore as distinct layers
 COPY HackatonAPI/*.csproj ./HackatonAPI/
-RUN dotnet restore ./HackatonAPI/HackatonAPI.csproj
+RUN dotnet restore ./HackatonAPI/HackatonAPI.csproj -r linux-x64
 
 # copy everything else and build app
 COPY HackatonAPI/. ./HackatonAPI/
 WORKDIR /source/HackatonAPI/
-RUN dotnet publish -c release -o /app --no-restore
+RUN dotnet publish -c release -o /app -r linux-x64 --no-restore
 
 # final stage/image
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

@@ -61,8 +61,7 @@ ICalculationEngine calculationEngine) =>
         );
     }
 })
-.WithName("AddCalculationRequest")
-.WithOpenApi();
+.WithName("AddCalculationRequest");
 
 app.Run();
 
