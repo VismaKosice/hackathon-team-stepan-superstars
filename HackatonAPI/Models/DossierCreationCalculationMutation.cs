@@ -2,11 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-[JsonConverter(typeof(CalculationMutationConverter))]
-public abstract record CalculationMutation(
+public record DossierCreationCalculationMutation(
     Guid MutationId,
     string MutationDefinitionName,
-    string MutationType,
     DateOnly ActualAt,
     Dictionary<string, object> MutationProperties
-);
+) : CalculationMutation(MutationId, MutationDefinitionName, "DOSSIER_CREATION", ActualAt, MutationProperties);
