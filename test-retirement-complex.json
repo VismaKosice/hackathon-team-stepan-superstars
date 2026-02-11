@@ -1,0 +1,55 @@
+{
+  "tenant_id": "test-retirement",
+  "calculation_instructions": {
+    "mutations": [
+      {
+        "mutation_id": "m1",
+        "mutation_definition_name": "create_dossier",
+        "mutation_type": "DOSSIER_CREATION",
+        "actual_at": "2000-01-01",
+        "mutation_properties": {
+          "dossier_id": "d1",
+          "person_id": "p1",
+          "name": "Test Person",
+          "birth_date": "1960-06-15"
+        }
+      },
+      {
+        "mutation_id": "m2",
+        "mutation_definition_name": "add_policy",
+        "mutation_type": "DOSSIER",
+        "actual_at": "2000-01-01",
+        "dossier_id": "d1",
+        "mutation_properties": {
+          "scheme_id": "SCHEME-A",
+          "employment_start_date": "2000-01-01",
+          "salary": 50000,
+          "part_time_factor": 1.0
+        }
+      },
+      {
+        "mutation_id": "m3",
+        "mutation_definition_name": "add_policy",
+        "mutation_type": "DOSSIER",
+        "actual_at": "2010-01-01",
+        "dossier_id": "d1",
+        "mutation_properties": {
+          "scheme_id": "SCHEME-B",
+          "employment_start_date": "2010-01-01",
+          "salary": 60000,
+          "part_time_factor": 0.8
+        }
+      },
+      {
+        "mutation_id": "m4",
+        "mutation_definition_name": "calculate_retirement_benefit",
+        "mutation_type": "DOSSIER",
+        "actual_at": "2025-01-01",
+        "dossier_id": "d1",
+        "mutation_properties": {
+          "retirement_date": "2025-01-01"
+        }
+      }
+    ]
+  }
+}

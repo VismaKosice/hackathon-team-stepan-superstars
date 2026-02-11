@@ -1,0 +1,5 @@
+@HackatonAPI_HostAddress = http://localhost:5155
+
+POST {{HackatonAPI_HostAddress}}/calculation-requests/
+Accept: application/json
+

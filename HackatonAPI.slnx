@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="api-spec.yaml" />
+    <File Path="data-model.md" />
+    <File Path="DOCKERFILE" />
+    <File Path="INDEX.md" />
+    <File Path="QUICK_START.md" />
+    <File Path="README.md" />
+    <File Path="SUBMISSION.md" />
+  </Folder>
+  <Project Path="HackatonAPI.IntegrationTests/HackatonAPI.IntegrationTests.csproj" />
+  <Project Path="HackatonAPI/HackatonAPI.csproj" />
+</Solution>

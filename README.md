@@ -104,7 +104,7 @@ A full request and expected response to help you verify your implementation.
 
 ```json
 {
-  "tenant_id": "tenant-001",
+  "tenant_id": "tenant001",
   "calculation_instructions": {
     "mutations": [
       {
@@ -114,7 +114,7 @@ A full request and expected response to help you verify your implementation.
         "actual_at": "2020-01-01",
         "mutation_properties": {
           "dossier_id": "d2222222-2222-2222-2222-222222222222",
-          "person_id": "p3333333-3333-3333-3333-333333333333",
+          "person_id": "d3333333-3333-3333-3333-333333333333",
           "name": "Jane Doe",
           "birth_date": "1960-06-15"
         }
@@ -153,7 +153,7 @@ A full request and expected response to help you verify your implementation.
 {
   "calculation_metadata": {
     "calculation_id": "<engine-generated UUID>",
-    "tenant_id": "tenant-001",
+    "tenant_id": "tenant001",
     "calculation_started_at": "<ISO timestamp>",
     "calculation_completed_at": "<ISO timestamp>",
     "calculation_duration_ms": "<number>",
@@ -176,7 +176,7 @@ A full request and expected response to help you verify your implementation.
           "actual_at": "2020-01-01",
           "mutation_properties": {
             "dossier_id": "d2222222-2222-2222-2222-222222222222",
-            "person_id": "p3333333-3333-3333-3333-333333333333",
+            "person_id": "d3333333-3333-3333-3333-333333333333",
             "name": "Jane Doe",
             "birth_date": "1960-06-15"
           }
@@ -221,7 +221,7 @@ A full request and expected response to help you verify your implementation.
           "retirement_date": null,
           "persons": [
             {
-              "person_id": "p3333333-3333-3333-3333-333333333333",
+              "person_id": "d3333333-3333-3333-3333-333333333333",
               "role": "PARTICIPANT",
               "name": "Jane Doe",
               "birth_date": "1960-06-15"
