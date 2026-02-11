@@ -13,7 +13,44 @@ Base class providing shared functionality for all integration tests:
 - Common assertion methods
 - JSON serialization configuration
 
-### 2. BasicMutationTests
+### 2. JsonTestCaseTests ⭐ NEW
+**Data-driven tests using JSON test case files from the test-cases folder**
+
+This test class automatically discovers and runs all JSON test case files from the `test-cases` folder. Each test case file defines:
+- Request payload
+- Expected response structure
+- Expected calculation outcome
+- Expected messages and validation errors
+- Expected end situation state
+
+**Test Cases:**
+- ✅ C01-create-dossier.json
+- ✅ C02-add-single-policy.json
+- ✅ C03-add-multiple-policies.json
+- ✅ C04-apply-indexation.json
+- ✅ C05-indexation-scheme-filter.json
+- ✅ C06-indexation-date-filter.json
+- ✅ C07-full-happy-path.json
+- ✅ C08-part-time-retirement.json
+- ✅ C09-error-ineligible-retirement.json
+- ✅ C10-error-no-dossier.json
+- ✅ C11-warning-duplicate-policy.json
+- ✅ C12-warning-no-matching-policies.json
+- ✅ C13-warning-negative-salary-clamped.json
+- ✅ C14-warning-retirement-before-employment.json
+- ✅ B01-project-future-benefits.json (Bonus feature implemented)
+
+**15/15 tests passing** (100% coverage including bonus feature)
+
+The test framework performs comprehensive validation:
+- HTTP status code verification
+- Calculation outcome (SUCCESS/FAILURE)
+- Message count and message codes/levels
+- Mutations processed count
+- End situation metadata (mutation_id, mutation_index, actual_at)
+- Deep JSON comparison of end_situation state with numeric tolerance (0.01)
+
+### 3. BasicMutationTests
 Tests for basic mutation operations:
 - ✅ `create_dossier` only
 - ✅ `create_dossier` + `add_policy` (single)

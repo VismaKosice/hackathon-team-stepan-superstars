@@ -31,7 +31,7 @@ ICalculationEngine calculationEngine) =>
         // Validate tenant_id pattern
         if (string.IsNullOrWhiteSpace(request.TenantId) || 
             request.TenantId.Length > 25 ||
-            !System.Text.RegularExpressions.Regex.IsMatch(request.TenantId, @"^[a-z0-9]+(?:_[a-z0-9]+)*$"))
+            !TenantIdRegex().IsMatch(request.TenantId))
         {
             return TypedResults.BadRequest(new ErrorResponse(
                 400,
@@ -105,4 +105,13 @@ internal partial class AppJsonSerializerContext : JsonSerializerContext
 }
 
 // Make the Program class accessible to integration tests
-public partial class Program { }
+public partial class Program
+{
+    
+}
+
+partial class Program
+{
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[a-z0-9]+(?:_[a-z0-9]+)*$")]
+    private static partial System.Text.RegularExpressions.Regex TenantIdRegex();
+}

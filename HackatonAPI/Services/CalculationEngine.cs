@@ -25,6 +25,11 @@ public class CalculationEngine : ICalculationEngine
             currentSituation
         );
         
+        // Track last successful mutation for end_situation
+        CalculationMutation? lastSuccessfulMutation = null;
+        SimplifiedSituation? lastSuccessfulSituation = null;
+        int lastSuccessfulIndex = -1;
+        
         // Process each mutation in order
         for (int i = 0; i < request.CalculationInstructions.Mutations.Length; i++)
         {
@@ -50,6 +55,11 @@ public class CalculationEngine : ICalculationEngine
                 {
                     break;
                 }
+                
+                // Track last successful mutation (no CRITICAL errors)
+                lastSuccessfulMutation = mutation;
+                lastSuccessfulSituation = currentSituation;
+                lastSuccessfulIndex = i;
             }
             catch (Exception ex)
             {
@@ -74,12 +84,16 @@ public class CalculationEngine : ICalculationEngine
         var endTime = DateTime.UtcNow;
         var duration = (long)(endTime - startTime).TotalMilliseconds;
         
-        var lastMutation = request.CalculationInstructions.Mutations[mutationResults.Count - 1];
+        // Use last successful mutation for end_situation, or first mutation if none succeeded
+        var endSituationMutation = lastSuccessfulMutation ?? request.CalculationInstructions.Mutations[0];
+        var endSituationState = lastSuccessfulSituation ?? currentSituation;
+        var endSituationIndex = lastSuccessfulIndex >= 0 ? lastSuccessfulIndex : 0;
+        
         var endSituation = new SituationSnapshot(
-            lastMutation.ActualAt,
-            currentSituation,
-            lastMutation.MutationId,
-            mutationResults.Count - 1
+            endSituationMutation.ActualAt,
+            endSituationState,
+            endSituationMutation.MutationId,
+            endSituationIndex
         );
         
         var outcome = messages.Any(m => m.Level == "CRITICAL") ? "FAILURE" : "SUCCESS";
@@ -562,29 +576,103 @@ public class CalculationEngine : ICalculationEngine
             return currentSituation;
         }
         
-        var projectionDates = GetArrayProperty<DateOnly>(mutation.MutationProperties, "projection_dates");
-        var expectedGrowthRate = GetDecimalProperty(mutation.MutationProperties, "expected_growth_rate");
+        if (currentSituation.Dossier.Policies.Length == 0)
+        {
+            var messageId = messages.Count;
+            messages.Add(new CalculationMessage(
+                messageId,
+                "CRITICAL",
+                "NO_POLICIES",
+                "Cannot project future benefits: dossier has no policies"
+            ));
+            messageIndexes.Add(messageId);
+            return currentSituation;
+        }
         
+        var projectionStartDate = GetDateProperty(mutation.MutationProperties, "projection_start_date");
+        var projectionEndDate = GetDateProperty(mutation.MutationProperties, "projection_end_date");
+        var projectionIntervalMonths = GetIntProperty(mutation.MutationProperties, "projection_interval_months");
+        
+        const decimal accrualRate = 0.02m;
+        
+        // Generate projection dates
+        var projectionDates = new List<DateOnly>();
+        var currentDate = projectionStartDate;
+        while (currentDate <= projectionEndDate)
+        {
+            projectionDates.Add(currentDate);
+            currentDate = currentDate.AddMonths(projectionIntervalMonths);
+        }
+        
+        // For each projection date, calculate pension as if retiring on that date (no eligibility check)
         var updatedPolicies = currentSituation.Dossier.Policies
-            .Select(p =>
+            .Select(policy =>
             {
-                var baseAmount = p.AttainablePension ?? p.Salary * p.PartTimeFactor * 0.02m;
                 var projections = projectionDates
-                    .Select(date =>
+                    .Select(projectionDate =>
                     {
-                        var years = date.Year - mutation.ActualAt.Year;
-                        var projectedPension = baseAmount * (decimal)Math.Pow((double)(1 + expectedGrowthRate), years);
-                        return new Projection(date, projectedPension);
+                        // Calculate this policy's contribution for the projection
+                        var projectedPension = CalculatePolicyProjection(
+                            currentSituation.Dossier.Policies,
+                            policy,
+                            projectionDate,
+                            accrualRate);
+                        
+                        return new Projection(projectionDate, projectedPension);
                     })
                     .ToArray();
                 
-                return p with { Projections = projections };
+                return policy with { Projections = projections };
             })
             .ToArray();
         
         var updatedDossier = currentSituation.Dossier with { Policies = updatedPolicies };
         
         return new SimplifiedSituation(updatedDossier);
+    }
+    
+    private static decimal CalculatePolicyProjection(
+        Policy[] allPolicies,
+        Policy targetPolicy,
+        DateOnly projectionDate,
+        decimal accrualRate)
+    {
+        // Calculate years of service and effective salary for each policy
+        var policyData = allPolicies
+            .Select(p =>
+            {
+                var days = (projectionDate.ToDateTime(TimeOnly.MinValue) - p.EmploymentStartDate.ToDateTime(TimeOnly.MinValue)).TotalDays;
+                var years = (decimal)Math.Max(0, days / 365.25);
+                var effectiveSalary = p.Salary * p.PartTimeFactor;
+                
+                return new
+                {
+                    Policy = p,
+                    Years = years,
+                    EffectiveSalary = effectiveSalary
+                };
+            })
+            .ToArray();
+        
+        var totalYears = policyData.Sum(pd => pd.Years);
+        
+        if (totalYears == 0)
+        {
+            return 0;
+        }
+        
+        // Calculate weighted average salary
+        var weightedSum = policyData.Sum(pd => pd.EffectiveSalary * pd.Years);
+        var weightedAvgSalary = weightedSum / totalYears;
+        
+        // Calculate total annual pension
+        var annualPension = weightedAvgSalary * totalYears * accrualRate;
+        
+        // Find the target policy's share
+        var targetPolicyData = policyData.First(pd => pd.Policy.PolicyId == targetPolicy.PolicyId);
+        var policyPension = annualPension * (targetPolicyData.Years / totalYears);
+        
+        return policyPension;
     }
     
     private static Guid GetGuidProperty(Dictionary<string, object> properties, string key)
@@ -637,6 +725,21 @@ public class CalculationEngine : ICalculationEngine
                     : decimal.Parse(element.GetString()!);
             }
             return Convert.ToDecimal(value);
+        }
+        throw new InvalidOperationException($"Property '{key}' not found");
+    }
+    
+    private static int GetIntProperty(Dictionary<string, object> properties, string key)
+    {
+        if (properties.TryGetValue(key, out var value))
+        {
+            if (value is JsonElement element)
+            {
+                return element.ValueKind == JsonValueKind.Number 
+                    ? element.GetInt32() 
+                    : int.Parse(element.GetString()!);
+            }
+            return Convert.ToInt32(value);
         }
         throw new InvalidOperationException($"Property '{key}' not found");
     }

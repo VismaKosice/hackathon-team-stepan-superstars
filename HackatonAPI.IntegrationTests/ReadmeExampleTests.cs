@@ -69,10 +69,11 @@ public class ReadmeExampleTests : IntegrationTestBase
         response.CalculationResult.InitialSituation.Situation.Dossier.Should().BeNull();
 
         // Verify mutations were processed
-        response.CalculationResult.Mutations.Should().HaveCount(3);
-        response.CalculationResult.Mutations[0].Mutation.MutationDefinitionName.Should().Be("create_dossier");
-        response.CalculationResult.Mutations[1].Mutation.MutationDefinitionName.Should().Be("add_policy");
-        response.CalculationResult.Mutations[2].Mutation.MutationDefinitionName.Should().Be("apply_indexation");
+        var mutations = response.CalculationResult.Mutations.ToList();
+        mutations.Should().HaveCount(3);
+        mutations[0].Mutation.MutationDefinitionName.Should().Be("create_dossier");
+        mutations[1].Mutation.MutationDefinitionName.Should().Be("add_policy");
+        mutations[2].Mutation.MutationDefinitionName.Should().Be("apply_indexation");
 
         // Verify end situation
         var endSituation = response.CalculationResult.EndSituation;
