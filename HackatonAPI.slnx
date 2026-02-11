@@ -2,7 +2,7 @@
   <Folder Name="/Solution Items/">
     <File Path="api-spec.yaml" />
     <File Path="data-model.md" />
-    <File Path="DOCKERFILE" />
+    <File Path="Dockerfile_." />
     <File Path="INDEX.md" />
     <File Path="QUICK_START.md" />
     <File Path="README.md" />
