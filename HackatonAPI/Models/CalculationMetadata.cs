@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record CalculationMetadata(
+public record struct CalculationMetadata(
     [property: JsonPropertyName("calculation_id")] Guid CalculationId,
     [property: JsonPropertyName("tenant_id")] string TenantId,
     [property: JsonPropertyName("calculation_started_at")] DateTime CalculationStartedAt,

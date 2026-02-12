@@ -40,7 +40,7 @@ ICalculationEngine calculationEngine) =>
         }
         
         // Validate mutations array
-        if (request.CalculationInstructions?.Mutations == null || 
+        if (request.CalculationInstructions.Mutations == null || 
             request.CalculationInstructions.Mutations.Length == 0)
         {
             return TypedResults.BadRequest(new ErrorResponse(

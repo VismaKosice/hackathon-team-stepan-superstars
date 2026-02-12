@@ -63,11 +63,11 @@ public class IndexationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Policies.Should().HaveCount(2);
+        dossier!.Value.Policies.Should().HaveCount(2);
 
         // Verify both policies were indexed by 3%
-        dossier.Policies[0].Salary.Should().Be(51500m); // 50000 * 1.03
-        dossier.Policies[1].Salary.Should().Be(61800m); // 60000 * 1.03
+        dossier.Value.Policies[0].Salary.Should().Be(51500m); // 50000 * 1.03
+        dossier.Value.Policies[1].Salary.Should().Be(61800m); // 60000 * 1.03
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }
@@ -126,11 +126,11 @@ public class IndexationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Policies.Should().HaveCount(2);
+        dossier!.Value.Policies.Should().HaveCount(2);
 
         // Only SCHEME-A should be indexed by 5%
-        dossier.Policies[0].Salary.Should().Be(52500m); // 50000 * 1.05
-        dossier.Policies[1].Salary.Should().Be(60000m); // Unchanged
+        dossier.Value.Policies[0].Salary.Should().Be(52500m); // 50000 * 1.05
+        dossier.Value.Policies[1].Salary.Should().Be(60000m); // Unchanged
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }
@@ -189,11 +189,11 @@ public class IndexationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Policies.Should().HaveCount(2);
+        dossier!.Value.Policies.Should().HaveCount(2);
 
         // Only policy with employment_start_date before 2010-01-01 should be indexed
-        dossier.Policies[0].Salary.Should().Be(52000m); // 50000 * 1.04
-        dossier.Policies[1].Salary.Should().Be(60000m); // Unchanged (2015 is not before 2010)
+        dossier.Value.Policies[0].Salary.Should().Be(52000m); // 50000 * 1.04
+        dossier.Value.Policies[1].Salary.Should().Be(60000m); // Unchanged (2015 is not before 2010)
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }
@@ -242,10 +242,10 @@ public class IndexationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Policies.Should().HaveCount(1);
+        dossier!.Value.Policies.Should().HaveCount(1);
 
         // Salary should remain unchanged
-        dossier.Policies[0].Salary.Should().Be(50000m);
+        dossier.Value.Policies[0].Salary.Should().Be(50000m);
 
         // Should have a warning about no matching policies
         response.CalculationResult.Messages.Should().ContainSingle(m => 
@@ -295,10 +295,10 @@ public class IndexationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Policies.Should().HaveCount(1);
+        dossier!.Value.Policies.Should().HaveCount(1);
 
         // Salary should be clamped to 0
-        dossier.Policies[0].Salary.Should().Be(0m);
+        dossier.Value.Policies[0].Salary.Should().Be(0m);
 
         // Should have a warning about negative salary
         response.CalculationResult.Messages.Should().ContainSingle(m => 

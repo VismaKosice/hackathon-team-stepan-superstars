@@ -85,21 +85,21 @@ public class ReadmeExampleTests : IntegrationTestBase
         // Verify dossier state
         var dossier = endSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.DossierId.Should().Be(dossierId);
-        dossier.Status.Should().Be("ACTIVE");
-        dossier.RetirementDate.Should().BeNull();
+        dossier!.Value.DossierId.Should().Be(dossierId);
+        dossier.Value.Status.Should().Be("ACTIVE");
+        dossier.Value.RetirementDate.Should().BeNull();
 
         // Verify person
-        dossier.Persons.Should().HaveCount(1);
-        var person = dossier.Persons[0];
+        dossier.Value.Persons.Should().HaveCount(1);
+        var person = dossier.Value.Persons[0];
         person.PersonId.Should().Be(personId);
         person.Role.Should().Be("PARTICIPANT");
         person.Name.Should().Be("Jane Doe");
         person.BirthDate.Should().Be(new DateOnly(1960, 6, 15));
 
         // Verify policy
-        dossier.Policies.Should().HaveCount(1);
-        var policy = dossier.Policies[0];
+        dossier.Value.Policies.Should().HaveCount(1);
+        var policy = dossier.Value.Policies[0];
         policy.PolicyId.Should().Be($"{dossierId}-1");
         policy.SchemeId.Should().Be("SCHEME-A");
         policy.EmploymentStartDate.Should().Be(new DateOnly(2000, 1, 1));
@@ -168,9 +168,9 @@ public class ReadmeExampleTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Status.Should().Be("RETIRED");
-        dossier.RetirementDate.Should().Be(new DateOnly(2025, 1, 1));
-        dossier.Policies.Should().HaveCount(2);
+        dossier!.Value.Status.Should().Be("RETIRED");
+        dossier.Value.RetirementDate.Should().Be(new DateOnly(2025, 1, 1));
+        dossier.Value.Policies.Should().HaveCount(2);
 
         // Verify the calculations from README example:
         // Years of service:
@@ -189,16 +189,16 @@ public class ReadmeExampleTests : IntegrationTestBase
         // - Policy 1: 39400 * (25/40) = 24,625
         // - Policy 2: 39400 * (15/40) = 14,775
 
-        dossier.Policies[0].AttainablePension.Should().NotBeNull();
-        dossier.Policies[1].AttainablePension.Should().NotBeNull();
+        dossier.Value.Policies[0].AttainablePension.Should().NotBeNull();
+        dossier.Value.Policies[1].AttainablePension.Should().NotBeNull();
 
         // Allow tolerance for date calculation precision
-        dossier.Policies[0].AttainablePension.Should().BeApproximately(24625m, 100m);
-        dossier.Policies[1].AttainablePension.Should().BeApproximately(14775m, 100m);
+        dossier.Value.Policies[0].AttainablePension.Should().BeApproximately(24625m, 100m);
+        dossier.Value.Policies[1].AttainablePension.Should().BeApproximately(14775m, 100m);
 
         // Verify total pension
-        var totalPension = dossier.Policies[0].AttainablePension!.Value + 
-                          dossier.Policies[1].AttainablePension!.Value;
+        var totalPension = dossier.Value.Policies[0].AttainablePension!.Value + 
+                          dossier.Value.Policies[1].AttainablePension!.Value;
         totalPension.Should().BeApproximately(39400m, 200m);
 
         response.CalculationResult.Messages.Should().BeEmpty();
@@ -259,7 +259,7 @@ public class ReadmeExampleTests : IntegrationTestBase
         // Assert
         AssertSuccessResponse(response, "tenant001", 4);
 
-        var policies = response.CalculationResult.EndSituation.Situation.Dossier!.Policies;
+        var policies = response.CalculationResult.EndSituation.Situation.Dossier!.Value.Policies;
         policies.Should().HaveCount(3);
 
         // Verify sequential policy IDs
@@ -312,9 +312,9 @@ public class ReadmeExampleTests : IntegrationTestBase
         AssertSuccessResponse(response, "tenant001", 3);
         
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
-        dossier!.Status.Should().Be("RETIRED");
-        dossier.Policies[0].AttainablePension.Should().NotBeNull();
-        dossier.Policies[0].AttainablePension.Should().BeGreaterThan(0);
+        dossier!.Value.Status.Should().Be("RETIRED");
+        dossier.Value.Policies[0].AttainablePension.Should().NotBeNull();
+        dossier.Value.Policies[0].AttainablePension.Should().BeGreaterThan(0);
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }

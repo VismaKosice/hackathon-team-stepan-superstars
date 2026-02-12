@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record Policy(
+public record struct Policy(
     [property: JsonPropertyName("policy_id")] string PolicyId,
     [property: JsonPropertyName("scheme_id")] string SchemeId,
     [property: JsonPropertyName("employment_start_date")] DateOnly EmploymentStartDate,

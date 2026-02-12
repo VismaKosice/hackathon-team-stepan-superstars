@@ -52,7 +52,7 @@ public class ErrorScenarioTests : IntegrationTestBase
         
         // End situation should reflect state before failed mutation
         response.CalculationResult.EndSituation.Situation.Dossier.Should().NotBeNull();
-        response.CalculationResult.EndSituation.Situation.Dossier!.DossierId.Should().Be(dossierId);
+        response.CalculationResult.EndSituation.Situation.Dossier!.Value.DossierId.Should().Be(dossierId);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class ErrorScenarioTests : IntegrationTestBase
 
         // Dossier should exist but no policies
         response.CalculationResult.EndSituation.Situation.Dossier.Should().NotBeNull();
-        response.CalculationResult.EndSituation.Situation.Dossier!.Policies.Should().BeEmpty();
+        response.CalculationResult.EndSituation.Situation.Dossier!.Value.Policies.Should().BeEmpty();
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public class ErrorScenarioTests : IntegrationTestBase
         response.CalculationResult.Messages.Should().Contain(m => 
             m.Code == "INVALID_PART_TIME_FACTOR" && m.Level == "CRITICAL");
 
-        response.CalculationResult.EndSituation.Situation.Dossier!.Policies.Should().BeEmpty();
+        response.CalculationResult.EndSituation.Situation.Dossier!.Value.Policies.Should().BeEmpty();
     }
 
     [Fact]
@@ -397,8 +397,8 @@ public class ErrorScenarioTests : IntegrationTestBase
             m.Code == "NOT_ELIGIBLE" && m.Level == "CRITICAL");
 
         // Dossier should remain ACTIVE
-        response.CalculationResult.EndSituation.Situation.Dossier!.Status.Should().Be("ACTIVE");
-        response.CalculationResult.EndSituation.Situation.Dossier!.RetirementDate.Should().BeNull();
+        response.CalculationResult.EndSituation.Situation.Dossier!.Value.Status.Should().Be("ACTIVE");
+        response.CalculationResult.EndSituation.Situation.Dossier!.Value.RetirementDate.Should().BeNull();
     }
 
     [Fact]
@@ -443,7 +443,7 @@ public class ErrorScenarioTests : IntegrationTestBase
         AssertSuccessResponse(response, "tenant001", 3);
         
         // Should succeed - 40 years of service even though under 65
-        response.CalculationResult.EndSituation.Situation.Dossier!.Status.Should().Be("RETIRED");
+        response.CalculationResult.EndSituation.Situation.Dossier!.Value.Status.Should().Be("RETIRED");
         response.CalculationResult.Messages.Should().BeEmpty();
     }
 }

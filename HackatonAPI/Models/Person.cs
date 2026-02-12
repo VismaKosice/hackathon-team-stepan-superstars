@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record Person(
+public record struct Person(
     [property: JsonPropertyName("person_id")] Guid PersonId,
     [property: JsonPropertyName("role")] string Role,
     [property: JsonPropertyName("name")] string Name,

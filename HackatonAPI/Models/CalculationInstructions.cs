@@ -2,6 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record CalculationInstructions(
+public record struct CalculationInstructions(
     [property: JsonPropertyName("mutations")] CalculationMutation[] Mutations
 );

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record MutationResult(
+public record struct MutationResult(
     [property: JsonPropertyName("mutation")] CalculationMutation Mutation,
     [property: JsonPropertyName("calculation_message_indexes"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int[]? CalculationMessageIndexes = null,
     [property: JsonPropertyName("forward_patch_to_situation_after_this_mutation"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] object[]? ForwardPatchToSituationAfterThisMutation = null,
