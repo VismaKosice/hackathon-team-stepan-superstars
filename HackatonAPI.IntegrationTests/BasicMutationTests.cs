@@ -42,15 +42,15 @@ public class BasicMutationTests : IntegrationTestBase
         // Verify end situation
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.DossierId.Should().Be(dossierId);
-        dossier.Value.Status.Should().Be("ACTIVE");
-        dossier.Value.RetirementDate.Should().BeNull();
-        dossier.Value.Persons.Should().HaveCount(1);
-        dossier.Value.Persons[0].PersonId.Should().Be(personId);
-        dossier.Value.Persons[0].Name.Should().Be("Jane Doe");
-        dossier.Value.Persons[0].BirthDate.Should().Be(new DateOnly(1960, 6, 15));
-        dossier.Value.Persons[0].Role.Should().Be("PARTICIPANT");
-        dossier.Value.Policies.Should().BeEmpty();
+        dossier!.DossierId.Should().Be(dossierId);
+        dossier.Status.Should().Be("ACTIVE");
+        dossier.RetirementDate.Should().BeNull();
+        dossier.Persons.Should().HaveCount(1);
+        dossier.Persons[0].PersonId.Should().Be(personId);
+        dossier.Persons[0].Name.Should().Be("Jane Doe");
+        dossier.Persons[0].BirthDate.Should().Be(new DateOnly(1960, 6, 15));
+        dossier.Persons[0].Role.Should().Be("PARTICIPANT");
+        dossier.Policies.Should().BeEmpty();
 
         // Verify no validation messages
         response.CalculationResult.Messages.Should().BeEmpty();
@@ -92,9 +92,9 @@ public class BasicMutationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.Policies.Should().HaveCount(1);
+        dossier!.Policies.Should().HaveCount(1);
 
-        var policy = dossier.Value.Policies[0];
+        var policy = dossier.Policies[0];
         policy.PolicyId.Should().Be($"{dossierId}-1");
         policy.SchemeId.Should().Be("SCHEME-A");
         policy.EmploymentStartDate.Should().Be(new DateOnly(2000, 1, 1));
@@ -162,25 +162,25 @@ public class BasicMutationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.Policies.Should().HaveCount(3);
+        dossier!.Policies.Should().HaveCount(3);
 
         // Verify policy IDs are sequential
-        dossier.Value.Policies[0].PolicyId.Should().Be($"{dossierId}-1");
-        dossier.Value.Policies[1].PolicyId.Should().Be($"{dossierId}-2");
-        dossier.Value.Policies[2].PolicyId.Should().Be($"{dossierId}-3");
+        dossier.Policies[0].PolicyId.Should().Be($"{dossierId}-1");
+        dossier.Policies[1].PolicyId.Should().Be($"{dossierId}-2");
+        dossier.Policies[2].PolicyId.Should().Be($"{dossierId}-3");
 
         // Verify policy details
-        dossier.Value.Policies[0].SchemeId.Should().Be("SCHEME-A");
-        dossier.Value.Policies[0].Salary.Should().Be(50000m);
-        dossier.Value.Policies[0].PartTimeFactor.Should().Be(1.0m);
+        dossier.Policies[0].SchemeId.Should().Be("SCHEME-A");
+        dossier.Policies[0].Salary.Should().Be(50000m);
+        dossier.Policies[0].PartTimeFactor.Should().Be(1.0m);
 
-        dossier.Value.Policies[1].SchemeId.Should().Be("SCHEME-B");
-        dossier.Value.Policies[1].Salary.Should().Be(60000m);
-        dossier.Value.Policies[1].PartTimeFactor.Should().Be(0.8m);
+        dossier.Policies[1].SchemeId.Should().Be("SCHEME-B");
+        dossier.Policies[1].Salary.Should().Be(60000m);
+        dossier.Policies[1].PartTimeFactor.Should().Be(0.8m);
 
-        dossier.Value.Policies[2].SchemeId.Should().Be("SCHEME-C");
-        dossier.Value.Policies[2].Salary.Should().Be(70000m);
-        dossier.Value.Policies[2].PartTimeFactor.Should().Be(0.5m);
+        dossier.Policies[2].SchemeId.Should().Be("SCHEME-C");
+        dossier.Policies[2].Salary.Should().Be(70000m);
+        dossier.Policies[2].PartTimeFactor.Should().Be(0.5m);
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }
@@ -231,7 +231,7 @@ public class BasicMutationTests : IntegrationTestBase
         AssertSuccessResponse(response, "tenant001", 3);
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
-        dossier!.Value.Policies.Should().HaveCount(2); // Both policies are added despite warning
+        dossier!.Policies.Should().HaveCount(2); // Both policies are added despite warning
 
         // Verify warning message
         response.CalculationResult.Messages.Should().ContainSingle(m => 

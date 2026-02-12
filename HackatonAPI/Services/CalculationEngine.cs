@@ -281,7 +281,7 @@ public class CalculationEngine : ICalculationEngine
         
         // Check for duplicate policy (same scheme_id AND employment_start_date)
         var isDuplicate = false;
-        var policies = currentSituation.Dossier.Value.Policies;
+        var policies = currentSituation.Dossier.Policies;
 
         for (int i = 0; i < policies.Length; i++)
         {
@@ -308,8 +308,8 @@ public class CalculationEngine : ICalculationEngine
         }
         
         // Auto-generate policy_id: {dossier_id}-{sequence_number}
-        var policySequenceNumber = currentSituation.Dossier.Value.Policies.Length + 1;
-        var policyId = $"{currentSituation.Dossier.Value.DossierId}-{policySequenceNumber}";
+        var policySequenceNumber = currentSituation.Dossier.Policies.Length + 1;
+        var policyId = $"{currentSituation.Dossier.DossierId}-{policySequenceNumber}";
         
         var newPolicy = new Policy(
             policyId,
@@ -319,8 +319,8 @@ public class CalculationEngine : ICalculationEngine
             partTimeFactor
         );
         
-        var updatedPolicies = currentSituation.Dossier.Value.Policies.Append(newPolicy).ToArray();
-        var updatedDossier = currentSituation.Dossier.Value with { Policies = updatedPolicies };
+        var updatedPolicies = currentSituation.Dossier.Policies.Append(newPolicy).ToArray();
+        var updatedDossier = currentSituation.Dossier with { Policies = updatedPolicies };
         
         return new SimplifiedSituation(updatedDossier);
     }
@@ -349,7 +349,7 @@ public class CalculationEngine : ICalculationEngine
             return currentSituation;
         }
         
-        if (currentSituation.Dossier.Value.Policies.Length == 0)
+        if (currentSituation.Dossier.Policies.Length == 0)
         {
             var messageId = messages.Count;
 
@@ -370,7 +370,7 @@ public class CalculationEngine : ICalculationEngine
         var effectiveBeforeFilter = GetOptionalDateProperty(mutation.MutationProperties, "effective_before");
         
         var hasFilters = schemeIdFilter != null || effectiveBeforeFilter != null;
-        var policies = currentSituation.Dossier.Value.Policies;
+        var policies = currentSituation.Dossier.Policies;
         
         // Count matching policies if filters are present
         var matchCount = 0;
@@ -475,7 +475,7 @@ public class CalculationEngine : ICalculationEngine
             };
         }
         
-        var updatedDossier = currentSituation.Dossier.Value with { Policies = updatedPolicies };
+        var updatedDossier = currentSituation.Dossier with { Policies = updatedPolicies };
         
         return new SimplifiedSituation(updatedDossier);
     }
@@ -511,7 +511,7 @@ public class CalculationEngine : ICalculationEngine
             return currentSituation;
         }
         
-        if (currentSituation.Dossier.Value.Policies.Length == 0)
+        if (currentSituation.Dossier.Policies.Length == 0)
         {
             var messageId = messages.Count;
             messages.Add(new CalculationMessage(
@@ -531,7 +531,7 @@ public class CalculationEngine : ICalculationEngine
         
         // Get participant's birth date for eligibility check
         Person? participant = null;
-        var persons = currentSituation.Dossier.Value.Persons;
+        var persons = currentSituation.Dossier.Persons;
 
         for (int i = 0; i < persons.Length; i++)
         {
@@ -559,7 +559,7 @@ public class CalculationEngine : ICalculationEngine
         }
         
         // Calculate years of service per policy and check for warnings
-        var policies = currentSituation.Dossier.Value.Policies;
+        var policies = currentSituation.Dossier.Policies;
         var policyData = new PolicyYearsData[policies.Length];
         decimal totalYears = 0;
 
@@ -593,7 +593,7 @@ public class CalculationEngine : ICalculationEngine
         }
         
         // Check eligibility: age >= 65 OR total years >= 40
-        var ageAtRetirement = (retirementDate.ToDateTime(TimeOnly.MinValue) - participant.Value.BirthDate.ToDateTime(TimeOnly.MinValue)).TotalDays / 365.25;
+        var ageAtRetirement = (retirementDate.ToDateTime(TimeOnly.MinValue) - participant.BirthDate.ToDateTime(TimeOnly.MinValue)).TotalDays / 365.25;
         var isEligible = ageAtRetirement >= 65 || totalYears >= 40;
         
         if (!isEligible)
@@ -641,7 +641,7 @@ public class CalculationEngine : ICalculationEngine
             updatedPolicies[i] = policyData[i].Policy with { AttainablePension = policyPension };
         }
         
-        var updatedDossier = currentSituation.Dossier.Value with 
+        var updatedDossier = currentSituation.Dossier with 
         { 
             Policies = updatedPolicies,
             Status = "RETIRED",
@@ -674,7 +674,7 @@ public class CalculationEngine : ICalculationEngine
             return currentSituation;
         }
         
-        if (currentSituation.Dossier.Value.Policies.Length == 0)
+        if (currentSituation.Dossier.Policies.Length == 0)
         {
             var messageId = messages.Count;
             messages.Add(new CalculationMessage(
@@ -705,7 +705,7 @@ public class CalculationEngine : ICalculationEngine
             tempDate = tempDate.AddMonths(projectionIntervalMonths);
         }
         
-        var policies = currentSituation.Dossier.Value.Policies;
+        var policies = currentSituation.Dossier.Policies;
         var updatedPolicies = new Policy[policies.Length];
         
         // For each policy, calculate projections
@@ -732,7 +732,7 @@ public class CalculationEngine : ICalculationEngine
             updatedPolicies[policyIdx] = policy with { Projections = projections };
         }
         
-        var updatedDossier = currentSituation.Dossier.Value with { Policies = updatedPolicies };
+        var updatedDossier = currentSituation.Dossier with { Policies = updatedPolicies };
         
         return new SimplifiedSituation(updatedDossier);
     }

@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record struct Dossier(
+public record Dossier(
     [property: JsonPropertyName("dossier_id")] Guid DossierId,
     [property: JsonPropertyName("status")] string Status,
     [property: JsonPropertyName("retirement_date")] DateOnly? RetirementDate,

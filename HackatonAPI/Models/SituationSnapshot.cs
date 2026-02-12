@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record struct SituationSnapshot(
+public record SituationSnapshot(
     [property: JsonPropertyName("actual_at")] DateOnly ActualAt,
     [property: JsonPropertyName("situation")] SimplifiedSituation Situation,
     [property: JsonPropertyName("mutation_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? MutationId = null,

@@ -2,6 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace HackatonAPI.Models;
 
-public record struct SimplifiedSituation(
+public record SimplifiedSituation(
     [property: JsonPropertyName("dossier")] Dossier? Dossier
 );

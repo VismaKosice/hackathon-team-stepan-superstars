@@ -53,10 +53,10 @@ public class RetirementCalculationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.Policies.Should().HaveCount(1);
-        dossier.Value.Policies[0].Salary.Should().Be(51500m); // 50000 * 1.03
-        dossier.Value.Status.Should().Be("ACTIVE");
-        dossier.Value.RetirementDate.Should().BeNull();
+        dossier!.Policies.Should().HaveCount(1);
+        dossier.Policies[0].Salary.Should().Be(51500m); // 50000 * 1.03
+        dossier.Status.Should().Be("ACTIVE");
+        dossier.RetirementDate.Should().BeNull();
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }
@@ -104,14 +104,14 @@ public class RetirementCalculationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.Status.Should().Be("RETIRED");
-        dossier.Value.RetirementDate.Should().Be(new DateOnly(2025, 7, 1));
-        dossier.Value.Policies.Should().HaveCount(1);
+        dossier!.Status.Should().Be("RETIRED");
+        dossier.RetirementDate.Should().Be(new DateOnly(2025, 7, 1));
+        dossier.Policies.Should().HaveCount(1);
 
         // Years of service: 2000-01-01 to 2025-07-01 = ~25.5 years
         // Weighted avg salary: 50000 (only one policy)
         // Annual pension = 50000 * 25.5 * 0.02 = 25,500
-        var policy = dossier.Value.Policies[0];
+        var policy = dossier.Policies[0];
         policy.AttainablePension.Should().NotBeNull();
         policy.AttainablePension.Should().BeApproximately(25500m, 100m); // Allow some tolerance for date calculation
 
@@ -171,8 +171,8 @@ public class RetirementCalculationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.Status.Should().Be("RETIRED");
-        dossier!.Value.Policies.Should().HaveCount(2);
+        dossier!.Status.Should().Be("RETIRED");
+        dossier!.Policies.Should().HaveCount(2);
 
         // Years of service:
         // Policy 1: 25 years (2000-2025)
@@ -190,8 +190,8 @@ public class RetirementCalculationTests : IntegrationTestBase
         // Policy 1: 39400 * (25/40) = 24,625
         // Policy 2: 39400 * (15/40) = 14,775
 
-        dossier.Value.Policies[0].AttainablePension.Should().BeApproximately(24625m, 100m);
-        dossier.Value.Policies[1].AttainablePension.Should().BeApproximately(14775m, 100m);
+        dossier.Policies[0].AttainablePension.Should().BeApproximately(24625m, 100m);
+        dossier.Policies[1].AttainablePension.Should().BeApproximately(14775m, 100m);
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }
@@ -239,14 +239,14 @@ public class RetirementCalculationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.Status.Should().Be("RETIRED");
+        dossier!.Status.Should().Be("RETIRED");
 
         // Should have a warning about retirement before employment
         response.CalculationResult.Messages.Should().Contain(m => 
             m.Code == "RETIREMENT_BEFORE_EMPLOYMENT" && m.Level == "WARNING");
 
         // Policy should have 0 years of service, resulting in 0 pension
-        dossier.Value.Policies[0].AttainablePension.Should().Be(0m);
+        dossier.Policies[0].AttainablePension.Should().Be(0m);
     }
 
     [Fact]
@@ -317,22 +317,22 @@ public class RetirementCalculationTests : IntegrationTestBase
 
         var dossier = response.CalculationResult.EndSituation.Situation.Dossier;
         dossier.Should().NotBeNull();
-        dossier!.Value.Status.Should().Be("RETIRED");
-        dossier.Value.Policies.Should().HaveCount(2);
+        dossier!.Status.Should().Be("RETIRED");
+        dossier.Policies.Should().HaveCount(2);
 
         // After indexations:
         // Policy 1: 40000 * 1.05 * 1.03 = 43260
         // Policy 2: 50000 * 1.05 * 1.03 = 54075
 
         // Verify salaries after indexation
-        dossier.Value.Policies[0].Salary.Should().BeApproximately(43260m, 1m);
-        dossier.Value.Policies[1].Salary.Should().BeApproximately(54075m, 1m);
+        dossier.Policies[0].Salary.Should().BeApproximately(43260m, 1m);
+        dossier.Policies[1].Salary.Should().BeApproximately(54075m, 1m);
 
         // Both policies should have calculated pensions
-        dossier.Value.Policies[0].AttainablePension.Should().NotBeNull();
-        dossier.Value.Policies[0].AttainablePension.Should().BeGreaterThan(0);
-        dossier.Value.Policies[1].AttainablePension.Should().NotBeNull();
-        dossier.Value.Policies[1].AttainablePension.Should().BeGreaterThan(0);
+        dossier.Policies[0].AttainablePension.Should().NotBeNull();
+        dossier.Policies[0].AttainablePension.Should().BeGreaterThan(0);
+        dossier.Policies[1].AttainablePension.Should().NotBeNull();
+        dossier.Policies[1].AttainablePension.Should().BeGreaterThan(0);
 
         response.CalculationResult.Messages.Should().BeEmpty();
     }
