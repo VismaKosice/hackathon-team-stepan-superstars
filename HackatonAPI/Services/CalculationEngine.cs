@@ -1,4 +1,6 @@
 using HackatonAPI.Models;
+using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 
 namespace HackatonAPI.Services;
@@ -14,7 +16,6 @@ public class CalculationEngine : ICalculationEngine
     {
         var calculationId = Guid.NewGuid();
         var startTime = DateTime.UtcNow;
-        
         var messages = new List<CalculationMessage>();
         var mutationResults = new List<MutationResult>();
         
@@ -31,54 +32,71 @@ public class CalculationEngine : ICalculationEngine
         int lastSuccessfulIndex = -1;
         
         // Process each mutation in order
-        for (int i = 0; i < request.CalculationInstructions.Mutations.Length; i++)
+        var messageIndexesBuffer = ArrayPool<int>.Shared.Rent(16);
+
+        try
         {
-            var mutation = request.CalculationInstructions.Mutations[i];
-            var messageIndexes = new List<int>();
-            
-            try
+            for (int i = 0; i < request.CalculationInstructions.Mutations.Length; i++)
             {
-                currentSituation = await ProcessMutationAsync(
-                    mutation, 
-                    currentSituation, 
-                    messages, 
-                    messageIndexes
-                );
+                var mutation = request.CalculationInstructions.Mutations[i];
+                var messageIndexCount = 0;
                 
-                mutationResults.Add(new MutationResult(
-                    mutation,
-                    messageIndexes.Count > 0 ? messageIndexes.ToArray() : null
-                ));
-                
-                // Check if any CRITICAL messages were added - halt processing if so
-                if (messageIndexes.Any() && messages.Any(m => messageIndexes.Contains(m.Id) && m.Level == "CRITICAL"))
+                try
                 {
+                    currentSituation = await ProcessMutationAsync(
+                        mutation, 
+                        currentSituation, 
+                        messages, 
+                        messageIndexesBuffer,
+                        ref messageIndexCount
+                    );
+                    
+                    var messageIndexArray = messageIndexCount > 0 ? messageIndexesBuffer.AsSpan(0, messageIndexCount).ToArray() : null;
+                    mutationResults.Add(new MutationResult(mutation, messageIndexArray));
+                    
+                    // Check if any CRITICAL messages were added - halt processing if so
+                    if (messageIndexCount > 0)
+                    {
+                        var hasCritical = false;
+
+                        for (int j = 0; j < messageIndexCount; j++)
+                        {
+                            if (messages[messageIndexesBuffer[j]].Level == "CRITICAL")
+                            {
+                                hasCritical = true;
+                                break;
+                            }
+                        }
+
+                        if (hasCritical) break;
+                    }
+                    
+                    // Track last successful mutation (no CRITICAL errors)
+                    lastSuccessfulMutation = mutation;
+                    lastSuccessfulSituation = currentSituation;
+                    lastSuccessfulIndex = i;
+                }
+                catch (Exception ex)
+                {
+                    var messageId = messages.Count;
+
+                    messages.Add(new CalculationMessage(
+                        messageId,
+                        "CRITICAL",
+                        "MUTATION_ERROR",
+                        $"Error processing mutation: {ex.Message}"
+                    ));
+                    
+                    messageIndexesBuffer[0] = messageId;
+                    mutationResults.Add(new MutationResult(mutation, [messageId]));
+                    
                     break;
                 }
-                
-                // Track last successful mutation (no CRITICAL errors)
-                lastSuccessfulMutation = mutation;
-                lastSuccessfulSituation = currentSituation;
-                lastSuccessfulIndex = i;
             }
-            catch (Exception ex)
-            {
-                var messageId = messages.Count;
-                messages.Add(new CalculationMessage(
-                    messageId,
-                    "CRITICAL",
-                    "MUTATION_ERROR",
-                    $"Error processing mutation: {ex.Message}"
-                ));
-                messageIndexes.Add(messageId);
-                
-                mutationResults.Add(new MutationResult(
-                    mutation,
-                    messageIndexes.Count > 0 ? messageIndexes.ToArray() : null
-                ));
-                
-                break;
-            }
+        }
+        finally
+        {
+            ArrayPool<int>.Shared.Return(messageIndexesBuffer);
         }
         
         var endTime = DateTime.UtcNow;
@@ -116,30 +134,32 @@ public class CalculationEngine : ICalculationEngine
         );
     }
     
-    private async Task<SimplifiedSituation> ProcessMutationAsync(
+    private Task<SimplifiedSituation> ProcessMutationAsync(
         CalculationMutation mutation,
         SimplifiedSituation currentSituation,
         List<CalculationMessage> messages,
-        List<int> messageIndexes)
+        int[] messageIndexes,
+        ref int messageIndexCount)
     {
-        return mutation.MutationDefinitionName switch
+        var result = mutation.MutationDefinitionName switch
         {
-            "create_dossier" => await ProcessCreateDossierAsync(mutation, currentSituation, messages, messageIndexes),
-            "add_policy" => await ProcessAddPolicyAsync(mutation, currentSituation, messages, messageIndexes),
-            "apply_indexation" => await ProcessApplyIndexationAsync(mutation, currentSituation, messages, messageIndexes),
-            "calculate_retirement_benefit" => await ProcessCalculateRetirementBenefitAsync(mutation, currentSituation, messages, messageIndexes),
-            "project_future_benefits" => await ProcessProjectFutureBenefitsAsync(mutation, currentSituation, messages, messageIndexes),
+            "create_dossier" => ProcessCreateDossierAsync(mutation, currentSituation, messages, messageIndexes, ref messageIndexCount),
+            "add_policy" => ProcessAddPolicyAsync(mutation, currentSituation, messages, messageIndexes, ref messageIndexCount),
+            "apply_indexation" => ProcessApplyIndexationAsync(mutation, currentSituation, messages, messageIndexes, ref messageIndexCount),
+            "calculate_retirement_benefit" => ProcessCalculateRetirementBenefitAsync(mutation, currentSituation, messages, messageIndexes, ref messageIndexCount),
+            "project_future_benefits" => ProcessProjectFutureBenefitsAsync(mutation, currentSituation, messages, messageIndexes, ref messageIndexCount),
             _ => throw new InvalidOperationException($"Unknown mutation definition: {mutation.MutationDefinitionName}")
         };
+        return Task.FromResult(result);
     }
     
-    private async Task<SimplifiedSituation> ProcessCreateDossierAsync(
+    private SimplifiedSituation ProcessCreateDossierAsync(
         CalculationMutation mutation,
         SimplifiedSituation currentSituation,
         List<CalculationMessage> messages,
-        List<int> messageIndexes)
+        int[] messageIndexes,
+        ref int messageIndexCount)
     {
-        await Task.CompletedTask;
         
         if (currentSituation.Dossier != null)
         {
@@ -150,7 +170,7 @@ public class CalculationEngine : ICalculationEngine
                 "DOSSIER_ALREADY_EXISTS",
                 "Cannot create dossier: a dossier already exists"
             ));
-            messageIndexes.Add(messageId);
+            messageIndexes[messageIndexCount++] = messageId;
             return currentSituation;
         }
         
@@ -169,7 +189,7 @@ public class CalculationEngine : ICalculationEngine
                 "INVALID_NAME",
                 "Name cannot be empty or whitespace"
             ));
-            messageIndexes.Add(messageId);
+            messageIndexes[messageIndexCount++] = messageId;
             return currentSituation;
         }
         
@@ -183,7 +203,7 @@ public class CalculationEngine : ICalculationEngine
                 "INVALID_BIRTH_DATE",
                 $"Birth date cannot be in the future (birth_date: {birthDate}, actual_at: {mutation.ActualAt})"
             ));
-            messageIndexes.Add(messageId);
+            messageIndexes[messageIndexCount++] = messageId;
             return currentSituation;
         }
         
@@ -205,13 +225,13 @@ public class CalculationEngine : ICalculationEngine
         return new SimplifiedSituation(dossier);
     }
     
-    private async Task<SimplifiedSituation> ProcessAddPolicyAsync(
+    private SimplifiedSituation ProcessAddPolicyAsync(
         CalculationMutation mutation,
         SimplifiedSituation currentSituation,
         List<CalculationMessage> messages,
-        List<int> messageIndexes)
+        int[] messageIndexes,
+        ref int messageIndexCount)
     {
-        await Task.CompletedTask;
         
         if (currentSituation.Dossier == null)
         {
@@ -222,7 +242,7 @@ public class CalculationEngine : ICalculationEngine
                 "DOSSIER_NOT_FOUND",
                 "Cannot add policy: no dossier exists"
             ));
-            messageIndexes.Add(messageId);
+            messageIndexes[messageIndexCount++] = messageId;
             return currentSituation;
         }
         
@@ -241,7 +261,7 @@ public class CalculationEngine : ICalculationEngine
                 "INVALID_SALARY",
                 "Salary must be greater than or equal to 0"
             ));
-            messageIndexes.Add(messageId);
+            messageIndexes[messageIndexCount++] = messageId;
             return currentSituation;
         }
         
@@ -255,25 +275,35 @@ public class CalculationEngine : ICalculationEngine
                 "INVALID_PART_TIME_FACTOR",
                 "Part-time factor must be between 0 and 1"
             ));
-            messageIndexes.Add(messageId);
+            messageIndexes[messageIndexCount++] = messageId;
             return currentSituation;
         }
         
         // Check for duplicate policy (same scheme_id AND employment_start_date)
-        var isDuplicate = currentSituation.Dossier.Policies.Any(p =>
-            p.SchemeId == schemeId && 
-            p.EmploymentStartDate == employmentStartDate);
+        var isDuplicate = false;
+        var policies = currentSituation.Dossier.Policies;
+
+        for (int i = 0; i < policies.Length; i++)
+        {
+            if (policies[i].SchemeId == schemeId && policies[i].EmploymentStartDate == employmentStartDate)
+            {
+                isDuplicate = true;
+                break;
+            }
+        }
         
         if (isDuplicate)
         {
             var messageId = messages.Count;
+
             messages.Add(new CalculationMessage(
                 messageId,
                 "WARNING",
                 "DUPLICATE_POLICY",
                 $"A policy with scheme_id '{schemeId}' and employment_start_date '{employmentStartDate}' already exists"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
             // Continue processing - WARNING doesn't halt
         }
         
@@ -295,37 +325,43 @@ public class CalculationEngine : ICalculationEngine
         return new SimplifiedSituation(updatedDossier);
     }
     
-    private async Task<SimplifiedSituation> ProcessApplyIndexationAsync(
+    private SimplifiedSituation ProcessApplyIndexationAsync(
         CalculationMutation mutation,
         SimplifiedSituation currentSituation,
         List<CalculationMessage> messages,
-        List<int> messageIndexes)
+        int[] messageIndexes,
+        ref int messageIndexCount)
     {
-        await Task.CompletedTask;
         
         if (currentSituation.Dossier == null)
         {
             var messageId = messages.Count;
+
             messages.Add(new CalculationMessage(
                 messageId,
                 "CRITICAL",
                 "DOSSIER_NOT_FOUND",
                 "Cannot apply indexation: no dossier exists"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
         if (currentSituation.Dossier.Policies.Length == 0)
         {
             var messageId = messages.Count;
+
             messages.Add(new CalculationMessage(
                 messageId,
                 "CRITICAL",
                 "NO_POLICIES",
                 "Cannot apply indexation: dossier has no policies"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
@@ -333,104 +369,145 @@ public class CalculationEngine : ICalculationEngine
         var schemeIdFilter = GetOptionalStringProperty(mutation.MutationProperties, "scheme_id");
         var effectiveBeforeFilter = GetOptionalDateProperty(mutation.MutationProperties, "effective_before");
         
-        // Filter policies based on criteria
-        var policiesToUpdate = currentSituation.Dossier.Policies.AsEnumerable();
+        var hasFilters = schemeIdFilter != null || effectiveBeforeFilter != null;
+        var policies = currentSituation.Dossier.Policies;
         
-        if (schemeIdFilter != null)
+        // Count matching policies if filters are present
+        var matchCount = 0;
+
+        if (hasFilters)
         {
-            policiesToUpdate = policiesToUpdate.Where(p => p.SchemeId == schemeIdFilter);
+            for (int i = 0; i < policies.Length; i++)
+            {
+                var matches = true;
+
+                if (schemeIdFilter != null && policies[i].SchemeId != schemeIdFilter)
+                {
+                    matches = false;
+                }
+                else if (effectiveBeforeFilter != null && policies[i].EmploymentStartDate >= effectiveBeforeFilter.Value)
+                { 
+                    matches = false;
+                }
+
+                if (matches)
+                {
+                    matchCount++;
+                }
+            }
+            
+            if (matchCount == 0)
+            {
+                var messageId = messages.Count;
+
+                messages.Add(new CalculationMessage(
+                    messageId,
+                    "WARNING",
+                    "NO_MATCHING_POLICIES",
+                    "No policies match the specified filter criteria"
+                ));
+
+                messageIndexes[messageIndexCount++] = messageId;
+
+                return currentSituation;
+            }
         }
-        
-        if (effectiveBeforeFilter != null)
-        {
-            policiesToUpdate = policiesToUpdate.Where(p => p.EmploymentStartDate < effectiveBeforeFilter.Value);
-        }
-        
-        var matchingPolicies = policiesToUpdate.ToList();
-        
-        // Check if filters were provided but no policies match
-        if ((schemeIdFilter != null || effectiveBeforeFilter != null) && matchingPolicies.Count == 0)
-        {
-            var messageId = messages.Count;
-            messages.Add(new CalculationMessage(
-                messageId,
-                "WARNING",
-                "NO_MATCHING_POLICIES",
-                "No policies match the specified filter criteria"
-            ));
-            messageIndexes.Add(messageId);
-            return currentSituation;
-        }
-        
-        // Create a dictionary for quick lookup of policies to update
-        var policiesToUpdateSet = new HashSet<string>(matchingPolicies.Select(p => p.PolicyId));
         
         // Apply indexation with clamping
-        var updatedPolicies = currentSituation.Dossier.Policies
-            .Select(p =>
+        var updatedPolicies = new Policy[policies.Length];
+
+        for (int i = 0; i < policies.Length; i++)
+        {
+            var p = policies[i];
+            var shouldUpdate = !hasFilters;
+
+            if (hasFilters)
             {
-                if (!policiesToUpdateSet.Contains(p.PolicyId))
+                shouldUpdate = true;
+
+                if (schemeIdFilter != null && p.SchemeId != schemeIdFilter)
                 {
-                    return p; // Don't update this policy
+                    shouldUpdate = false;
                 }
-                
-                var newSalary = p.Salary * (1 + percentage);
-                decimal? newAttainablePension = p.AttainablePension.HasValue 
-                    ? p.AttainablePension.Value * (1 + percentage) 
-                    : null;
-                
-                // Check for negative salary after indexation
-                if (newSalary < 0)
+                else if (effectiveBeforeFilter != null && p.EmploymentStartDate >= effectiveBeforeFilter.Value)
                 {
-                    var messageId = messages.Count;
-                    messages.Add(new CalculationMessage(
-                        messageId,
-                        "WARNING",
-                        "NEGATIVE_SALARY_CLAMPED",
-                        $"Salary for policy {p.PolicyId} would be negative after indexation. Clamped to 0."
-                    ));
-                    messageIndexes.Add(messageId);
-                    newSalary = 0;
+                    shouldUpdate = false;
                 }
-                
-                
-                // Clamp attainable pension if necessary
-                if (newAttainablePension.HasValue && newAttainablePension.Value < 0)
-                {
-                    newAttainablePension = 0;
-                }
-                
-                return p with 
-                { 
-                    Salary = newSalary,
-                    AttainablePension = newAttainablePension
-                };
-            })
-            .ToArray();
+            }
+            
+            if (!shouldUpdate)
+            {
+                updatedPolicies[i] = p;
+                continue;
+            }
+            
+            var newSalary = p.Salary * (1 + percentage);
+            decimal? newAttainablePension = p.AttainablePension.HasValue 
+                ? p.AttainablePension.Value * (1 + percentage) 
+                : null;
+            
+            // Check for negative salary after indexation
+            if (newSalary < 0)
+            {
+                var messageId = messages.Count;
+
+                messages.Add(new CalculationMessage(
+                    messageId,
+                    "WARNING",
+                    "NEGATIVE_SALARY_CLAMPED",
+                    $"Salary for policy {p.PolicyId} would be negative after indexation. Clamped to 0."
+                ));
+
+                messageIndexes[messageIndexCount++] = messageId;
+                newSalary = 0;
+            }
+            
+            // Clamp attainable pension if necessary
+            if (newAttainablePension.HasValue && newAttainablePension.Value < 0)
+            {
+                newAttainablePension = 0;
+            }
+            
+            updatedPolicies[i] = p with 
+            { 
+                Salary = newSalary,
+                AttainablePension = newAttainablePension
+            };
+        }
         
         var updatedDossier = currentSituation.Dossier with { Policies = updatedPolicies };
         
         return new SimplifiedSituation(updatedDossier);
     }
     
-    private async Task<SimplifiedSituation> ProcessCalculateRetirementBenefitAsync(
+    private readonly struct PolicyYearsData(Policy policy, decimal years, decimal effectiveSalary)
+    {
+        public readonly Policy Policy = policy;
+        public readonly decimal Years = years;
+        public readonly decimal EffectiveSalary = effectiveSalary;
+    }
+
+    private SimplifiedSituation ProcessCalculateRetirementBenefitAsync(
         CalculationMutation mutation,
         SimplifiedSituation currentSituation,
         List<CalculationMessage> messages,
-        List<int> messageIndexes)
+        int[] messageIndexes,
+        ref int messageIndexCount)
     {
-        await Task.CompletedTask;
         
         if (currentSituation.Dossier == null)
         {
             var messageId = messages.Count;
+
             messages.Add(new CalculationMessage(
                 messageId,
                 "CRITICAL",
                 "DOSSIER_NOT_FOUND",
                 "Cannot calculate retirement benefit: no dossier exists"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
@@ -443,7 +520,9 @@ public class CalculationEngine : ICalculationEngine
                 "NO_POLICIES",
                 "Cannot calculate retirement benefit: dossier has no policies"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
@@ -451,56 +530,67 @@ public class CalculationEngine : ICalculationEngine
         const decimal accrualRate = 0.02m; // Hardcoded default accrual rate
         
         // Get participant's birth date for eligibility check
-        var participant = currentSituation.Dossier.Persons.FirstOrDefault(p => p.Role == "PARTICIPANT");
+        Person? participant = null;
+        var persons = currentSituation.Dossier.Persons;
+
+        for (int i = 0; i < persons.Length; i++)
+        {
+            if (persons[i].Role == "PARTICIPANT")
+            {
+                participant = persons[i];
+                break;
+            }
+        }
+        
         if (participant == null)
         {
             var messageId = messages.Count;
+
             messages.Add(new CalculationMessage(
                 messageId,
                 "CRITICAL",
                 "NO_PARTICIPANT",
                 "Cannot calculate retirement benefit: no participant found"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
         // Calculate years of service per policy and check for warnings
-        var policyData = currentSituation.Dossier.Policies
-            .Select(p =>
+        var policies = currentSituation.Dossier.Policies;
+        var policyData = new PolicyYearsData[policies.Length];
+        decimal totalYears = 0;
+
+        for (int i = 0; i < policies.Length; i++)
+        {
+            var p = policies[i];
+            decimal years;
+
+            if (retirementDate < p.EmploymentStartDate)
             {
-                decimal years;
-                if (retirementDate < p.EmploymentStartDate)
-                {
-                    // Retirement before employment - produce warning
-                    var messageId = messages.Count;
-                    messages.Add(new CalculationMessage(
-                        messageId,
-                        "WARNING",
-                        "RETIREMENT_BEFORE_EMPLOYMENT",
-                        $"Retirement date is before employment start date for policy {p.PolicyId}"
-                    ));
-                    messageIndexes.Add(messageId);
-                    years = 0;
-                }
-                else
-                {
-                    var days = (retirementDate.ToDateTime(TimeOnly.MinValue) - p.EmploymentStartDate.ToDateTime(TimeOnly.MinValue)).TotalDays;
-                    years = (decimal)(Math.Max(0, days / 365.25));
-                }
-                
-                var effectiveSalary = p.Salary * p.PartTimeFactor;
-                
-                return new
-                {
-                    Policy = p,
-                    Years = years,
-                    EffectiveSalary = effectiveSalary
-                };
-            })
-            .ToArray();
-        
-        var totalYears = policyData.Sum(pd => pd.Years);
+                // Retirement before employment - produce warning
+                var messageId = messages.Count;
+                messages.Add(new CalculationMessage(
+                    messageId,
+                    "WARNING",
+                    "RETIREMENT_BEFORE_EMPLOYMENT",
+                    $"Retirement date is before employment start date for policy {p.PolicyId}"
+                ));
+                messageIndexes[messageIndexCount++] = messageId;
+                years = 0;
+            }
+            else
+            {
+                var days = (retirementDate.ToDateTime(TimeOnly.MinValue) - p.EmploymentStartDate.ToDateTime(TimeOnly.MinValue)).TotalDays;
+                years = (decimal)Math.Max(0, days / 365.25);
+            }
+            
+            var effectiveSalary = p.Salary * p.PartTimeFactor;
+            policyData[i] = new PolicyYearsData(p, years, effectiveSalary);
+            totalYears += years;
+        }
         
         // Check eligibility: age >= 65 OR total years >= 40
         var ageAtRetirement = (retirementDate.ToDateTime(TimeOnly.MinValue) - participant.BirthDate.ToDateTime(TimeOnly.MinValue)).TotalDays / 365.25;
@@ -509,41 +599,47 @@ public class CalculationEngine : ICalculationEngine
         if (!isEligible)
         {
             var messageId = messages.Count;
+
             messages.Add(new CalculationMessage(
                 messageId,
                 "CRITICAL",
                 "NOT_ELIGIBLE",
                 $"Participant is not eligible for retirement (age: {ageAtRetirement:F1}, years of service: {totalYears:F1}). Must be 65+ years old OR have 40+ years of service."
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
         // Calculate weighted average salary
-        decimal weightedAvgSalary;
+        decimal weightedAvgSalary = 0;
+
         if (totalYears > 0)
         {
-            var weightedSum = policyData.Sum(pd => pd.EffectiveSalary * pd.Years);
+            decimal weightedSum = 0;
+
+            for (int i = 0; i < policyData.Length; i++)
+            {
+                weightedSum += policyData[i].EffectiveSalary * policyData[i].Years;
+            }
+
             weightedAvgSalary = weightedSum / totalYears;
-        }
-        else
-        {
-            weightedAvgSalary = 0;
         }
         
         // Calculate annual pension
         var annualPension = weightedAvgSalary * totalYears * accrualRate;
         
         // Distribute proportionally to policies
-        var updatedPolicies = policyData
-            .Select(pd =>
-            {
-                var policyPension = totalYears > 0 
-                    ? annualPension * (pd.Years / totalYears) 
-                    : 0;
-                return pd.Policy with { AttainablePension = policyPension };
-            })
-            .ToArray();
+        var updatedPolicies = new Policy[policyData.Length];
+
+        for (int i = 0; i < policyData.Length; i++)
+        {
+            var policyPension = totalYears > 0 
+                ? annualPension * (policyData[i].Years / totalYears) 
+                : 0;
+            updatedPolicies[i] = policyData[i].Policy with { AttainablePension = policyPension };
+        }
         
         var updatedDossier = currentSituation.Dossier with 
         { 
@@ -555,13 +651,13 @@ public class CalculationEngine : ICalculationEngine
         return new SimplifiedSituation(updatedDossier);
     }
     
-    private async Task<SimplifiedSituation> ProcessProjectFutureBenefitsAsync(
+    private SimplifiedSituation ProcessProjectFutureBenefitsAsync(
         CalculationMutation mutation,
         SimplifiedSituation currentSituation,
         List<CalculationMessage> messages,
-        List<int> messageIndexes)
+        int[] messageIndexes,
+        ref int messageIndexCount)
     {
-        await Task.CompletedTask;
         
         if (currentSituation.Dossier == null)
         {
@@ -572,7 +668,9 @@ public class CalculationEngine : ICalculationEngine
                 "NO_DOSSIER",
                 "Cannot project future benefits: no dossier exists"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
@@ -585,7 +683,9 @@ public class CalculationEngine : ICalculationEngine
                 "NO_POLICIES",
                 "Cannot project future benefits: dossier has no policies"
             ));
-            messageIndexes.Add(messageId);
+
+            messageIndexes[messageIndexCount++] = messageId;
+
             return currentSituation;
         }
         
@@ -595,36 +695,42 @@ public class CalculationEngine : ICalculationEngine
         
         const decimal accrualRate = 0.02m;
         
-        // Generate projection dates
-        var projectionDates = new List<DateOnly>();
-        var currentDate = projectionStartDate;
-        while (currentDate <= projectionEndDate)
+        // Count projection dates
+        var projectionCount = 0;
+        var tempDate = projectionStartDate;
+
+        while (tempDate <= projectionEndDate)
         {
-            projectionDates.Add(currentDate);
-            currentDate = currentDate.AddMonths(projectionIntervalMonths);
+            projectionCount++;
+            tempDate = tempDate.AddMonths(projectionIntervalMonths);
         }
         
-        // For each projection date, calculate pension as if retiring on that date (no eligibility check)
-        var updatedPolicies = currentSituation.Dossier.Policies
-            .Select(policy =>
+        var policies = currentSituation.Dossier.Policies;
+        var updatedPolicies = new Policy[policies.Length];
+        
+        // For each policy, calculate projections
+        for (int policyIdx = 0; policyIdx < policies.Length; policyIdx++)
+        {
+            var policy = policies[policyIdx];
+            var projections = new Projection[projectionCount];
+            var projIdx = 0;
+            var currentDate = projectionStartDate;
+            
+            while (currentDate <= projectionEndDate)
             {
-                var projections = projectionDates
-                    .Select(projectionDate =>
-                    {
-                        // Calculate this policy's contribution for the projection
-                        var projectedPension = CalculatePolicyProjection(
-                            currentSituation.Dossier.Policies,
-                            policy,
-                            projectionDate,
-                            accrualRate);
-                        
-                        return new Projection(projectionDate, projectedPension);
-                    })
-                    .ToArray();
+                // Calculate this policy's contribution for the projection
+                var projectedPension = CalculatePolicyProjection(
+                    policies,
+                    policy,
+                    currentDate,
+                    accrualRate);
                 
-                return policy with { Projections = projections };
-            })
-            .ToArray();
+                projections[projIdx++] = new Projection(currentDate, projectedPension);
+                currentDate = currentDate.AddMonths(projectionIntervalMonths);
+            }
+            
+            updatedPolicies[policyIdx] = policy with { Projections = projections };
+        }
         
         var updatedDossier = currentSituation.Dossier with { Policies = updatedPolicies };
         
@@ -638,23 +744,19 @@ public class CalculationEngine : ICalculationEngine
         decimal accrualRate)
     {
         // Calculate years of service and effective salary for each policy
-        var policyData = allPolicies
-            .Select(p =>
-            {
-                var days = (projectionDate.ToDateTime(TimeOnly.MinValue) - p.EmploymentStartDate.ToDateTime(TimeOnly.MinValue)).TotalDays;
-                var years = (decimal)Math.Max(0, days / 365.25);
-                var effectiveSalary = p.Salary * p.PartTimeFactor;
-                
-                return new
-                {
-                    Policy = p,
-                    Years = years,
-                    EffectiveSalary = effectiveSalary
-                };
-            })
-            .ToArray();
-        
-        var totalYears = policyData.Sum(pd => pd.Years);
+        var policyData = new PolicyYearsData[allPolicies.Length];
+        decimal totalYears = 0;
+
+        for (int i = 0; i < allPolicies.Length; i++)
+        {
+            var p = allPolicies[i];
+            var days = (projectionDate.ToDateTime(TimeOnly.MinValue) - p.EmploymentStartDate.ToDateTime(TimeOnly.MinValue)).TotalDays;
+            var years = (decimal)Math.Max(0, days / 365.25);
+            var effectiveSalary = p.Salary * p.PartTimeFactor;
+            
+            policyData[i] = new PolicyYearsData(p, years, effectiveSalary);
+            totalYears += years;
+        }
         
         if (totalYears == 0)
         {
@@ -662,16 +764,31 @@ public class CalculationEngine : ICalculationEngine
         }
         
         // Calculate weighted average salary
-        var weightedSum = policyData.Sum(pd => pd.EffectiveSalary * pd.Years);
+        decimal weightedSum = 0;
+
+        for (int i = 0; i < policyData.Length; i++)
+        {
+            weightedSum += policyData[i].EffectiveSalary * policyData[i].Years;
+        }
+
         var weightedAvgSalary = weightedSum / totalYears;
         
         // Calculate total annual pension
         var annualPension = weightedAvgSalary * totalYears * accrualRate;
         
         // Find the target policy's share
-        var targetPolicyData = policyData.First(pd => pd.Policy.PolicyId == targetPolicy.PolicyId);
-        var policyPension = annualPension * (targetPolicyData.Years / totalYears);
+        decimal targetYears = 0;
+
+        for (int i = 0; i < policyData.Length; i++)
+        {
+            if (policyData[i].Policy.PolicyId == targetPolicy.PolicyId)
+            {
+                targetYears = policyData[i].Years;
+                break;
+            }
+        }
         
+        var policyPension = annualPension * (targetYears / totalYears);
         return policyPension;
     }
     
@@ -709,8 +826,10 @@ public class CalculationEngine : ICalculationEngine
             {
                 return DateOnly.Parse(element.GetString()!);
             }
+
             return DateOnly.Parse(value.ToString()!);
         }
+
         throw new InvalidOperationException($"Property '{key}' not found");
     }
     
